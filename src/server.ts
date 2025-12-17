@@ -1,68 +1,117 @@
-import {
-  AngularNodeAppEngine,
-  createNodeRequestHandler,
-  isMainModule,
-  writeResponseToNodeResponse,
-} from '@angular/ssr/node';
 import express from 'express';
-import { join } from 'node:path';
+import cors from 'cors';
 
-const browserDistFolder = join(import.meta.dirname, '../browser');
-
-const app = express();
-const angularApp = new AngularNodeAppEngine();
-
-/**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/{*splat}', (req, res) => {
- *   // Handle API request
- * });
- * ```
- */
-
-/**
- * Serve static files from /browser
- */
-app.use(
-  express.static(browserDistFolder, {
-    maxAge: '1y',
-    index: false,
-    redirect: false,
-  }),
-);
-
-/**
- * Handle all other requests by rendering the Angular application.
- */
-app.use((req, res, next) => {
-  angularApp
-    .handle(req)
-    .then((response) =>
-      response ? writeResponseToNodeResponse(response, res) : next(),
-    )
-    .catch(next);
-});
-
-/**
- * Start the server if this module is the main entry point, or it is ran via PM2.
- * The server listens on the port defined by the `PORT` environment variable, or defaults to 4000.
- */
-if (isMainModule(import.meta.url) || process.env['pm_id']) {
-  const port = process.env['PORT'] || 4000;
-  app.listen(port, (error) => {
-    if (error) {
-      throw error;
-    }
-
-    console.log(`Node Express server listening on http://localhost:${port}`);
-  });
+// Define interface locally to avoid dependency on src files in server context
+interface Issue {
+  id: string;
+  title: string;
+  description: string;
+  status: 'todo' | 'inprogress' | 'done';
+  priority: 'low' | 'medium' | 'high';
+  assignee?: string;
+  createdAt: string;
 }
 
-/**
- * Request handler used by the Angular CLI (for dev-server and during build) or Firebase Cloud Functions.
- */
-export const reqHandler = createNodeRequestHandler(app);
+const app = express();
+const PORT = 3000;
+
+app.use(cors() as any);
+app.use(express.json());
+
+// In-memory storage with initial seed data
+let issues: Issue[] = [
+  {
+    id: '1',
+    title: 'Setup Project Structure',
+    description: 'Initialize Angular project with Tailwind CSS.',
+    status: 'done',
+    priority: 'high',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '2',
+    title: 'Implement Drag & Drop',
+    description: 'Create Kanban board with HTML5 Drag and Drop API.',
+    status: 'inprogress',
+    priority: 'high',
+    createdAt: new Date().toISOString()
+  },
+  {
+    id: '3',
+    title: 'Connect AI Service',
+    description: 'Integrate Gemini API for auto-generating descriptions.',
+    status: 'todo',
+    priority: 'medium',
+    createdAt: new Date().toISOString()
+  }
+];
+
+// GET all issues
+app.get('/api/issues', (req: any, res: any) => {
+  res.json(issues);
+});
+
+// POST new issue
+app.post('/api/issues', (req: any, res: any) => {
+  const body = req.body;
+  
+  if (!body.title) {
+    res.status(400).json({ error: 'Title is required' });
+    return;
+  }
+
+  const newIssue: Issue = {
+    id: body.id || Math.random().toString(36).substring(2, 9),
+    title: body.title,
+    description: body.description || '',
+    status: body.status || 'todo',
+    priority: body.priority || 'medium',
+    assignee: body.assignee,
+    createdAt: body.createdAt || new Date().toISOString()
+  };
+
+  issues.push(newIssue);
+  res.status(201).json(newIssue);
+});
+
+// PUT update issue
+app.put('/api/issues/:id', (req: any, res: any) => {
+  const { id } = req.params;
+  const body = req.body;
+  
+  const index = issues.findIndex(i => i.id === id);
+  if (index === -1) {
+    res.status(404).json({ error: 'Issue not found' });
+    return;
+  }
+
+  const updatedIssue: Issue = {
+    ...issues[index],
+    title: body.title ?? issues[index].title,
+    description: body.description ?? issues[index].description,
+    status: body.status ?? issues[index].status,
+    priority: body.priority ?? issues[index].priority,
+    assignee: body.assignee ?? issues[index].assignee
+  };
+
+  issues[index] = updatedIssue;
+  res.json(updatedIssue);
+});
+
+// DELETE issue
+app.delete('/api/issues/:id', (req: any, res: any) => {
+  const { id } = req.params;
+  const initialLength = issues.length;
+  issues = issues.filter(i => i.id !== id);
+  
+  if (issues.length === initialLength) {
+     res.status(404).json({ error: 'Issue not found' });
+     return;
+  }
+  
+  res.json({ success: true });
+});
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
