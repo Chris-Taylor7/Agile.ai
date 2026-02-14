@@ -7,7 +7,7 @@
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
     "test": "ng test",
-    "serve:ssr:BugTracker": "node dist/BugTracker/server/server.mjs"
+    "serve:ssr:Agile.ai": "node dist/Agile.ai/server/server.mjs"
   },
   "prettier": {
     "printWidth": 100,
